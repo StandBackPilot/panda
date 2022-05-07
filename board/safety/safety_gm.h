@@ -18,7 +18,9 @@ const int GM_DRIVER_TORQUE_FACTOR = 4;
 const int GM_MAX_GAS = 3072;
 const int GM_MAX_REGEN = 1404;
 const int GM_MAX_BRAKE = 350;
+const int GM_PARAM_FORCE_VOACC = 1;
 
+bool gm_force_voacc = false;
 
 int gm_good_cam_cnt = 0;
 bool gm_allow_fwd = true;
@@ -347,8 +349,9 @@ static int gm_fwd_hook(int bus_num, CANPacket_t *to_fwd) {
       // block stock lkas messages and stock acc messages (if OP is doing ACC)
       //TODO: Blocking stock camera ACC will need to be an option in custom fork to allow use of OP's VOACC.
       int is_lkas_msg = (addr == 384);
-      int is_acc_msg = false;
-      //int is_acc_msg = (addr == 0x343);
+      int is_acc_msg = (gm_force_voacc &&
+                        (addr == 715 || addr == 789 || addr == 1033 || addr == 1034 ||
+                        addr == 880 || addr == 789)); //There may be more we need to block...
       int block_msg = is_lkas_msg || is_acc_msg;
       if (!block_msg) {
         bus_fwd = 0;
@@ -360,7 +363,10 @@ static int gm_fwd_hook(int bus_num, CANPacket_t *to_fwd) {
 }
 
 static const addr_checks* gm_init(uint16_t param) {
-  UNUSED(param);
+  if (param & GM_PARAM_FORCE_VOACC) {
+    gm_force_voacc = true;
+  }
+
   gm_good_cam_cnt = 0;
   gm_allow_fwd = true;
   gm_block_fwd = false;
