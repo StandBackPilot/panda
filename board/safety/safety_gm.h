@@ -127,8 +127,15 @@ static int gm_rx_hook(CANPacket_t *to_push) {
     // on powertrain bus.
     // 384 = ASCMLKASteeringCmd
     // 715 = ASCMGasRegenCmd
+    // 789 = EBCMFrictionBrakeCmd
     //generic_rx_checks(((addr == 384) || (addr == 715)));
-    generic_rx_checks(addr == 384);
+    if (gm_force_voacc) {
+      generic_rx_checks((addr == 384) || (addr == 715) || (addr == 789));
+    }
+    else {
+      generic_rx_checks(addr == 384);
+    }
+    
     //TODO: relay malfunction firing when 715 is stock
   }
   return valid;
