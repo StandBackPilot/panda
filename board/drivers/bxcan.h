@@ -219,7 +219,7 @@ void CAN2_RX0_IRQ_Handler(void) { can_rx(1); }
 void CAN2_SCE_IRQ_Handler(void) { can_sce(CAN2); }
 
 void CAN3_TX_IRQ_Handler(void) { process_can(2); }
-void CAN3_RX0_IRQ_Handler(void) { can_rx(2); }
+void CAN3_RX0_IRQ_Handler(void) { can_rx(2); can_rx(3); }
 void CAN3_SCE_IRQ_Handler(void) { can_sce(CAN3); }
 
 bool can_init(uint8_t can_number) {
