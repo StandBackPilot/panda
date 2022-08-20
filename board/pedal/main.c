@@ -95,6 +95,7 @@ int comms_control_handler(ControlPacket_t *req, uint8_t *resp) {
 #define CAN_GAS_OUTPUT 0x201U
 #define CAN_GAS_SIZE 6
 #define COUNTER_CYCLE 0xFU
+#define GM_ADC_SCALE(readVal) (((readVal * 1545)/1000) + 25)
 
 void CAN1_TX_IRQ_Handler(void) {
   // clear interrupt
@@ -118,6 +119,7 @@ uint32_t current_index = 0;
 #define FAULT_INVALID 6U
 uint8_t state = FAULT_STARTUP;
 const uint8_t crc_poly = 0xD5U;  // standard crc8
+enum {VEH_NORMAL, VEH_GM} veh_type = VEH_NORMAL;
 
 void CAN1_RX0_IRQ_Handler(void) {
   while ((CAN->RF0R & CAN_RF0R_FMP0) != 0) {
@@ -244,8 +246,17 @@ void TIM3_IRQ_Handler(void) {
 
 void pedal(void) {
   // read/write
-  pdl0 = adc_get(ADCCHAN_ACCEL0);
-  pdl1 = adc_get(ADCCHAN_ACCEL1);
+
+  // GM Vehicles require a transform be applied to the ADC output to correct for differing internal resistance
+  if (veh_type == VEH_GM) {
+    pdl0 = GM_ADC_SCALE(adc_get(ADCCHAN_ACCEL0));
+    pdl1 = GM_ADC_SCALE(adc_get(ADCCHAN_ACCEL1));
+  }
+  else {
+    pdl0 = adc_get(ADCCHAN_ACCEL0);
+    pdl1 = adc_get(ADCCHAN_ACCEL1);
+  }
+  // TODO: Detect presence in GM vehicle. Presently hardcoded to "normal"
 
   // write the pedal to the DAC
   if (state == NO_FAULT) {
