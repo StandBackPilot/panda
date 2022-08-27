@@ -171,6 +171,9 @@ struct sample_t angle_meas;         // last 6 steer angles
 // See ISO 15622:2018 for more information.
 #define ALT_EXP_RAISE_LONGITUDINAL_LIMITS_TO_ISO_MAX 8
 
+// Permits OP lateral to operate with or without longitudinal
+#define ALT_EXP_STEER_ASSIST 16
+
 int alternative_experience = 0;
 
 // time since safety mode has been changed

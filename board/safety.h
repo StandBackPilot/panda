@@ -245,7 +245,7 @@ void generic_rx_checks(bool stock_ecu_detected) {
   gas_pressed_prev = gas_pressed;
 
   // exit controls on rising edge of brake press
-  if (brake_pressed && (!brake_pressed_prev || vehicle_moving)) {
+  if (brake_pressed && (!brake_pressed_prev || vehicle_moving) && !(alternative_experience & ALT_EXP_STEER_ASSIST)) {
     controls_allowed = 0;
   }
   brake_pressed_prev = brake_pressed;
@@ -519,9 +519,10 @@ bool steer_torque_cmd_checks(int desired_torque, int steer_req, const SteeringLi
   return violation;
 }
 
-void pcm_cruise_check(bool cruise_engaged) {
+void pcm_cruise_check(bool cruise_engaged, bool steer_assist = false) {
   // Enter controls on rising edge of stock ACC, exit controls if stock ACC disengages
-  if (!cruise_engaged) {
+  // Steer assist mode allows lateral all the time
+  if (!cruise_engaged && !steer_assist) {
     controls_allowed = false;
   }
   if (cruise_engaged && !cruise_engaged_prev) {

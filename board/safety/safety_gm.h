@@ -56,6 +56,7 @@ static int gm_rx_hook(CANPacket_t *to_push) {
 
   if (valid && (GET_BUS(to_push) == 0U)) {
     int addr = GET_ADDR(to_push);
+    bool alt_exp_steer_assist = alternative_experience & ALT_EXP_STEER_ASSIST;
 
     if (addr == 388) {
       int torque_driver_new = ((GET_BYTE(to_push, 6) & 0x7U) << 8) | GET_BYTE(to_push, 7);
@@ -75,7 +76,7 @@ static int gm_rx_hook(CANPacket_t *to_push) {
       int button = (GET_BYTE(to_push, 5) & 0x70U) >> 4;
 
       // exit controls on cancel press
-      if (button == GM_BTN_CANCEL) {
+      if (button == GM_BTN_CANCEL && !alt_exp_steer_assist) {
         controls_allowed = 0;
       }
 
@@ -102,16 +103,19 @@ static int gm_rx_hook(CANPacket_t *to_push) {
       // enter controls on rising edge of ACC, exit controls when ACC off
       if (gm_hw == GM_CAM) {
         bool cruise_engaged = (GET_BYTE(to_push, 1) >> 5) != 0U;
-        pcm_cruise_check(cruise_engaged);
+
+
+
+        pcm_cruise_check(cruise_engaged, alt_exp_steer_assist);
       }
     }
 
-    // exit controls on regen paddle
+    // regen paddle is pressing brake
     if (addr == 189) {
-      bool regen = GET_BYTE(to_push, 0) & 0x20U;
-      if (regen) {
-        controls_allowed = 0;
-      }
+      brake_pressed = GET_BYTE(to_push, 0) & 0x20U;
+      // if (regen) {
+      //   controls_allowed = 0;
+      // }
     }
 
     bool stock_ecu_detected = (addr == 384);  // ASCMLKASteeringCmd
@@ -144,11 +148,21 @@ static int gm_tx_hook(CANPacket_t *to_send, bool longitudinal_allowed) {
 
   // disallow actuator commands if gas or brake (with vehicle moving) are pressed
   // and the the latching controls_allowed flag is True
-  int pedal_pressed = brake_pressed_prev && vehicle_moving;
+  
+  int pedal_pressed = 0;
+  
+  // In steer assist mode, we essentially don't disengage
+  // TODO: Eventually should have both lateral and long state and block long when it is disabled
+  bool alt_exp_steer_assist = alternative_experience & ALT_EXP_STEER_ASSIST;
+  if (!alt_exp_steer_assist) {
+    pedal_pressed = pedal_pressed || (brake_pressed_prev && vehicle_moving);
+  }
+
   bool alt_exp_allow_gas = alternative_experience & ALT_EXP_DISABLE_DISENGAGE_ON_GAS;
   if (!alt_exp_allow_gas) {
     pedal_pressed = pedal_pressed || gas_pressed_prev;
   }
+  
   bool current_controls_allowed = controls_allowed && !pedal_pressed;
 
   // BRAKE: safety check
@@ -236,15 +250,17 @@ static int gm_tx_hook(CANPacket_t *to_send, bool longitudinal_allowed) {
     }
   }
 
-  // BUTTONS: used for resume spamming and cruise cancellation with stock longitudinal
-  if ((addr == 481) && (gm_hw == GM_CAM)) {
-    int button = (GET_BYTE(to_send, 5) >> 4) & 0x7U;
+  // Temporarily removing any reason the panda might drop a spammed button
+  // For testing
+  // // BUTTONS: used for resume spamming and cruise cancellation with stock longitudinal
+  // if ((addr == 481) && (gm_hw == GM_CAM)) {
+  //   int button = (GET_BYTE(to_send, 5) >> 4) & 0x7U;
 
-    bool allowed_cancel = (button == 6) && cruise_engaged_prev;
-    if (!allowed_cancel) {
-      tx = 0;
-    }
-  }
+  //   bool allowed_cancel = (button == 6) && cruise_engaged_prev;
+  //   if (!allowed_cancel) {
+  //     tx = 0;
+  //   }
+  // }
 
   // 1 allows the message through
   return tx;
