@@ -106,7 +106,7 @@ static int gm_rx_hook(CANPacket_t *to_push) {
 
 
 
-        pcm_cruise_check(cruise_engaged, alt_exp_steer_assist);
+        pcm_cruise_check2(cruise_engaged, alt_exp_steer_assist);
       }
     }
 

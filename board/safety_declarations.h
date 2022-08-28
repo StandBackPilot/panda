@@ -108,6 +108,7 @@ void relay_malfunction_set(void);
 void relay_malfunction_reset(void);
 bool steer_torque_cmd_checks(int desired_torque, int steer_req, const SteeringLimits limits);
 void pcm_cruise_check(bool cruise_engaged);
+void pcm_cruise_check2(bool cruise_engaged, bool steer_assist);
 
 typedef const addr_checks* (*safety_hook_init)(uint16_t param);
 typedef int (*rx_hook)(CANPacket_t *to_push);

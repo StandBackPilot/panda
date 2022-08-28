@@ -519,10 +519,22 @@ bool steer_torque_cmd_checks(int desired_torque, int steer_req, const SteeringLi
   return violation;
 }
 
-void pcm_cruise_check(bool cruise_engaged, bool steer_assist = false) {
+void pcm_cruise_check2(bool cruise_engaged, bool steer_assist) {
   // Enter controls on rising edge of stock ACC, exit controls if stock ACC disengages
   // Steer assist mode allows lateral all the time
   if (!cruise_engaged && !steer_assist) {
+    controls_allowed = false;
+  }
+  if (cruise_engaged && !cruise_engaged_prev) {
+    controls_allowed = true;
+  }
+  cruise_engaged_prev = cruise_engaged;
+}
+
+void pcm_cruise_check(bool cruise_engaged) {
+  // Enter controls on rising edge of stock ACC, exit controls if stock ACC disengages
+  // Steer assist mode allows lateral all the time
+  if (!cruise_engaged) {
     controls_allowed = false;
   }
   if (cruise_engaged && !cruise_engaged_prev) {
