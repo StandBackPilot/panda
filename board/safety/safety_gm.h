@@ -16,7 +16,8 @@ const int GM_MAX_RATE_DOWN = 17;
 const int GM_DRIVER_TORQUE_ALLOWANCE = 50;
 const int GM_DRIVER_TORQUE_FACTOR = 4;
 
-const int GM_MAX_GAS = 3072;
+//const int GM_MAX_GAS = 3072;
+const int GM_MAX_GAS = 3600
 const int GM_MAX_REGEN = 1404;
 const int GM_MAX_BRAKE = 350;
 
@@ -43,8 +44,8 @@ AddrCheckStruct gm_addr_checks[] = {
 #define GM_RX_CHECK_LEN (sizeof(gm_addr_checks) / sizeof(gm_addr_checks[0]))
 addr_checks gm_rx_checks = {gm_addr_checks, GM_RX_CHECK_LEN};
 
-const uint16_t GM_PARAM_HW_CAM = 1;
-const uint16_t GM_PARAM_HW_CAM_OP_LONG = 4;
+const uint16_t GM_PARAM_HW_CAM = 1U;
+const uint16_t GM_PARAM_HW_CAM_OP_LONG = 4U;
 
 enum {
   GM_BTN_UNPRESS = 1,
