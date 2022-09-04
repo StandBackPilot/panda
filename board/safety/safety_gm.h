@@ -25,11 +25,11 @@ const CanMsg GM_ASCM_TX_MSGS[] = {{384, 0, 4}, {1033, 0, 7}, {1034, 0, 7}, {715,
                                   {789, 2, 5},  // ch bus
                                   {0x104c006c, 3, 3}, {0x10400060, 3, 5}};  // gmlan
 
-const CanMsg GM_CAM_TX_MSGS[] = {{384, 0, 4}, {481, 0, 7}  // pt bus
+const CanMsg GM_CAM_TX_MSGS[] = {{384, 0, 4}, {481, 0, 7},  // pt bus
                                  {481, 2, 7}};  // camera bus
 
 // Note: TODO: button presses (481) may not be required on bus 2 when OP is handling long
-const CanMsg GM_CAM_OP_LONG_TX_MSGS[] = {{384, 0, 4}, {715, 0, 8}, {880, 0, 6}, {789, 0, 5}, {481, 0, 7}  // pt bus
+const CanMsg GM_CAM_OP_LONG_TX_MSGS[] = {{384, 0, 4}, {715, 0, 8}, {880, 0, 6}, {789, 0, 5}, {481, 0, 7},  // pt bus
                                          {481, 2, 7}};  // camera bus
 
 // TODO: do checksum and counter checks. Add correct timestep, 0.1s for now.
