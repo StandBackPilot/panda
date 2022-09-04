@@ -17,7 +17,7 @@ const int GM_DRIVER_TORQUE_ALLOWANCE = 50;
 const int GM_DRIVER_TORQUE_FACTOR = 4;
 
 //const int GM_MAX_GAS = 3072;
-const int GM_MAX_GAS = 3600
+const int GM_MAX_GAS = 3600;
 const int GM_MAX_REGEN = 1404;
 const int GM_MAX_BRAKE = 350;
 
