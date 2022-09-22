@@ -100,8 +100,6 @@ static int gm_rx_hook(CANPacket_t *to_push) {
       cruise_button_prev = button;
     }
 
-    // speed > 0
-    // EBCMBrakePedalPosition.BrakePedalPosition
     if (addr == 241) {
       // Brake pedal's potentiometer returns near-zero reading
       // even when pedal is not pressed
@@ -128,13 +126,8 @@ static int gm_rx_hook(CANPacket_t *to_push) {
       pcm_cruise_check(cruise_engaged);
     }
 
-    // exit controls on regen paddle
     if (addr == 189) {
-      bool regen = GET_BYTE(to_push, 0) & 0x20U;
-      if (regen) {
-        controls_allowed = 0;
-      }
-      // TODO: Why doesn't this use brake_pressed?
+      regen_braking = (GET_BYTE(to_push, 0) >> 4) != 0U;
     }
 
     // Pedal Interceptor
