@@ -31,6 +31,8 @@ const CanMsg GM_ASCM_TX_MSGS[] = {{384, 0, 4}, {1033, 0, 7}, {1034, 0, 7}, {715,
 const CanMsg GM_CAM_TX_MSGS[] = {{384, 0, 4},  // pt bus
                                  {481, 2, 7}, {388, 2, 8}};  // camera bus
 
+const CanMsg GM_CAM_CC_TX_MSGS[] = {{384, 0, 4}, {481, 0, 7}};  // pt bus
+
 // TODO: do checksum and counter checks. Add correct timestep, 0.1s for now.
 AddrCheckStruct gm_addr_checks[] = {
   {.msg = {{388, 0, 8, .expected_timestep = 100000U}, { 0 }, { 0 }}},
@@ -45,6 +47,7 @@ AddrCheckStruct gm_addr_checks[] = {
 addr_checks gm_rx_checks = {gm_addr_checks, GM_RX_CHECK_LEN};
 
 const uint16_t GM_PARAM_HW_CAM = 1;
+const uint16_t GM_PARAM_HW_CAM_CC = 4;
 
 enum {
   GM_BTN_UNPRESS = 1,
@@ -53,8 +56,9 @@ enum {
   GM_BTN_CANCEL = 6,
 };
 
-enum {GM_ASCM, GM_CAM} gm_hw = GM_ASCM;
+enum {GM_ASCM, GM_CAM, GM_CAM_CC} gm_hw = GM_ASCM;
 bool gm_pcm_cruise = false;
+
 
 static int gm_rx_hook(CANPacket_t *to_push) {
 
@@ -116,6 +120,15 @@ static int gm_rx_hook(CANPacket_t *to_push) {
       }
     }
 
+    // Standard CC state is in ECMEngineStatus
+    // enter controls on rising edge of CC, exit controls when CC off
+    if ((addr == 201) && (gm_hw == GM_CAM_CC)) {
+      if (gm_pcm_cruise) {
+        bool cruise_engaged = (GET_BYTE(to_push, 3) >> 6) == 1U;
+        pcm_cruise_check(cruise_engaged);
+      }
+    }
+
     if (addr == 189) {
       regen_braking = (GET_BYTE(to_push, 0) >> 4) != 0U;
     }
@@ -144,6 +157,8 @@ static int gm_tx_hook(CANPacket_t *to_send, bool longitudinal_allowed) {
 
   if (gm_hw == GM_CAM) {
     tx = msg_allowed(to_send, GM_CAM_TX_MSGS, sizeof(GM_CAM_TX_MSGS)/sizeof(GM_CAM_TX_MSGS[0]));
+  } else if (gm_hw == GM_CAM_CC) {
+    tx = msg_allowed(to_send, GM_CAM_CC_TX_MSGS, sizeof(GM_CAM_CC_TX_MSGS)/sizeof(GM_CAM_CC_TX_MSGS[0]));
   } else {
     tx = msg_allowed(to_send, GM_ASCM_TX_MSGS, sizeof(GM_ASCM_TX_MSGS)/sizeof(GM_ASCM_TX_MSGS[0]));
   }
@@ -250,6 +265,13 @@ static int gm_tx_hook(CANPacket_t *to_send, bool longitudinal_allowed) {
     if (!allowed_cancel) {
       tx = 0;
     }
+
+    // TODO: Establish conditions for button spams in CC mode
+    // Note: in CC mode, allow all button presses for now
+    bool allowed_button = (gm_hw == GM_CAM_CC);
+    if (!allowed_button) {
+      tx = 0;
+    }
   }
 
   // 1 allows the message through
@@ -260,7 +282,7 @@ static int gm_fwd_hook(int bus_num, CANPacket_t *to_fwd) {
 
   int bus_fwd = -1;
 
-  if (gm_hw == GM_CAM) {
+  if (gm_hw == GM_CAM || gm_hw == GM_CAM_CC) {
     int addr = GET_ADDR(to_fwd);
     if (bus_num == 0) {
       // block PSCMStatus; forwarded through openpilot to hide an alert from the camera
@@ -283,8 +305,11 @@ static int gm_fwd_hook(int bus_num, CANPacket_t *to_fwd) {
 }
 
 static const addr_checks* gm_init(uint16_t param) {
-  gm_hw = GET_FLAG(param, GM_PARAM_HW_CAM) ? GM_CAM : GM_ASCM;
-  gm_pcm_cruise = gm_hw == GM_CAM;
+  gm_hw = GET_FLAG(param, GM_PARAM_HW_CAM_CC) ? GM_CAM_CC : 
+          GET_FLAG(param, GM_PARAM_HW_CAM) ? GM_CAM : GM_ASCM;
+  
+  gm_pcm_cruise = ((gm_hw == GM_CAM) || (gm_hw == GM_CAM_CC));
+
   return &gm_rx_checks;
 }
 
