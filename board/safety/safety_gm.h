@@ -52,6 +52,8 @@ enum {
 
 enum {GM_ASCM, GM_CAM} gm_hw = GM_ASCM;
 bool gm_pcm_cruise = false;
+///uint32_t gm_start_ts = 0;
+uint32_t gm_last_lkas_ts = 0;
 
 static int gm_rx_hook(CANPacket_t *to_push) {
 
@@ -210,6 +212,22 @@ static int gm_tx_hook(CANPacket_t *to_send, bool longitudinal_allowed) {
       tx = 0;
     }
   }
+
+  //Last chance to catch too-soon frame
+  if (addr == 384) {
+    uint32_t ts2 = microsecond_timer_get();
+    uint32_t ts_elapsed = get_ts_elapsed(ts2, gm_last_lkas_ts);
+    // TODO: when tx is blocked, send inactive frames
+    // This doesn't handle the latching case
+    if (ts_elapsed <= 13000) { // Should be every 20ms, but it seems to tolerate down lower
+      // Hard 20ms cutoff was dropping WAY too many frames
+      tx = 0;
+    }
+    else {
+      gm_last_lkas_ts = ts2;
+    }
+  }
+
 
   // GAS/REGEN: safety check
   if (addr == 715) {
