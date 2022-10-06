@@ -27,12 +27,12 @@ const LongitudinalLimits *gm_long_limits;
 
 const int GM_STANDSTILL_THRSLD = 10;  // 0.311kph
 
-const CanMsg GM_ASCM_TX_MSGS[] = {{384, 0, 4}, {1033, 0, 7}, {1034, 0, 7}, {715, 0, 8}, {880, 0, 6},  // pt bus
+const CanMsg GM_ASCM_TX_MSGS[] = {{384, 0, 4}, {1033, 0, 7}, {1034, 0, 7}, {715, 0, 8}, {880, 0, 6}, {800, 0, 6},  // pt bus
                                   {161, 1, 7}, {774, 1, 8}, {776, 1, 7}, {784, 1, 2},   // obs bus
                                   {789, 2, 5},  // ch bus
                                   {0x104c006c, 3, 3}, {0x10400060, 3, 5}};  // gmlan
 
-const CanMsg GM_CAM_TX_MSGS[] = {{384, 0, 4},  // pt bus
+const CanMsg GM_CAM_TX_MSGS[] = {{384, 0, 4}, {800, 0, 6},  // pt bus
                                  {481, 2, 7}, {388, 2, 8}};  // camera bus
 
 const CanMsg GM_CAM_LONG_TX_MSGS[] = {{384, 0, 4}, {789, 0, 5}, {715, 0, 8}, {880, 0, 6},  // pt bus
@@ -54,6 +54,7 @@ addr_checks gm_rx_checks = {gm_addr_checks, GM_RX_CHECK_LEN};
 
 const uint16_t GM_PARAM_HW_CAM = 1;
 const uint16_t GM_PARAM_HW_CAM_LONG = 2;
+const uint16_t GM_PARAM_OP_AEB = 16;
 
 enum {
   GM_BTN_UNPRESS = 1,
@@ -65,6 +66,8 @@ enum {
 enum {GM_ASCM, GM_CAM} gm_hw = GM_ASCM;
 bool gm_cam_long = false;
 bool gm_pcm_cruise = false;
+
+bool gm_op_aeb = false;
 
 static int gm_rx_hook(CANPacket_t *to_push) {
 
@@ -206,6 +209,10 @@ static int gm_tx_hook(CANPacket_t *to_send) {
     }
   }
 
+  if (addr == 800) {
+    //TODO: Ensure only valid values are sent
+  }
+
   // 1 allows the message through
   return tx;
 }
@@ -228,7 +235,9 @@ static int gm_fwd_hook(int bus_num, CANPacket_t *to_fwd) {
       // block lkas message and acc messages if gm_cam_long, forward all others
       bool is_lkas_msg = (addr == 384);
       bool is_acc_msg = (addr == 789) || (addr == 715) || (addr == 880);
-      int block_msg = is_lkas_msg || (is_acc_msg && gm_cam_long);
+      // If OP is handling AEB, block AEB as well
+      bool is_aeb_msg = (addr == 800);
+      int block_msg = is_lkas_msg || (is_acc_msg && gm_cam_long) || (is_aeb_msg && gm_op_aeb);
       if (!block_msg) {
         bus_fwd = 0;
       }
@@ -251,6 +260,7 @@ static const addr_checks* gm_init(uint16_t param) {
 #ifdef ALLOW_DEBUG
   gm_cam_long = GET_FLAG(param, GM_PARAM_HW_CAM_LONG);
 #endif
+  gm_op_aeb = GET_FLAG(param, GM_PARAM_OP_AEB);
   gm_pcm_cruise = (gm_hw == GM_CAM) && !gm_cam_long;
   return &gm_rx_checks;
 }
