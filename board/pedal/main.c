@@ -96,6 +96,11 @@ int comms_control_handler(ControlPacket_t *req, uint8_t *resp) {
 #define CAN_GAS_SIZE 6
 #define COUNTER_CYCLE 0xFU
 
+#define XFORM_MODE_UNKNOWN 0U
+#define XFORM_MODE_NORMAL 1U
+#define XFORM_MODE_GM 2U
+uint16_t xform_mode = XFORM_MODE_GM;
+
 void CAN1_TX_IRQ_Handler(void) {
   // clear interrupt
   CAN->TSR |= CAN_TSR_RQCP0;
@@ -240,12 +245,23 @@ void TIM3_IRQ_Handler(void) {
   }
 }
 
+// Scale values from the ADC to compensate for GM's unusual electrical characteristics
+uint32_t gm_transform_adc(uint32_t readVal) {
+  return ((readVal * 1545U) / 1000U) + 25U;
+}
+
 // ***************************** main code *****************************
 
 void pedal(void) {
   // read/write
-  pdl0 = adc_get(ADCCHAN_ACCEL0);
-  pdl1 = adc_get(ADCCHAN_ACCEL1);
+  if (xform_mode == XFORM_MODE_GM) {
+    pdl0 = gm_transform_adc(adc_get(ADCCHAN_ACCEL0));
+    pdl1 = gm_transform_adc(adc_get(ADCCHAN_ACCEL1));
+  }
+  else {
+    pdl0 = adc_get(ADCCHAN_ACCEL0);
+    pdl1 = adc_get(ADCCHAN_ACCEL1);
+  }
 
   // write the pedal to the DAC
   if (state == NO_FAULT) {
