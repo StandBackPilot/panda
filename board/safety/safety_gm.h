@@ -135,12 +135,11 @@ static int gm_rx_hook(CANPacket_t *to_push) {
     }
 
     // exit controls on regen paddle
-    //TODO: Evaluate impact of this change. Previous method could have caused controls mismatch...
     if (addr == 189) {
-      brake_pressed = GET_BYTE(to_push, 0) & 0x20U;
-      // if (regen) {
-      //   controls_allowed = 0;
-      // }
+      int regen = GET_BYTE(to_push, 0) & 0x20U;
+      if (regen) {
+        controls_allowed = 0;
+      }
     }
 
     // Pedal Interceptor
@@ -156,7 +155,8 @@ static int gm_rx_hook(CANPacket_t *to_push) {
     // 384 = ASCMLKASteeringCmd
     // 715 = ASCMGasRegenCmd
     //generic_rx_checks(((addr == 384) || (addr == 715)));
-    generic_rx_checks(addr == 384);
+    //TODO: This should be based on a parameter...
+    generic_rx_checks(((addr == 384) || (addr == 715)));
     //TODO: relay malfunction firing when 715 is stock
   }
   return valid;
@@ -353,7 +353,7 @@ static int gm_fwd_hook(int bus_num, CANPacket_t *to_fwd) {
       // block stock lkas messages and stock acc messages (if OP is doing ACC)
       //TODO: Blocking stock camera ACC will need to be an option in custom fork to allow use of OP's VOACC.
       int is_lkas_msg = (addr == 384);
-      int is_acc_msg = false;
+      int is_acc_msg = (addr == 1033 || addr == 1034 || addr == 715 || addr == 880 || addr == 512 || addr == 789 || addr == 800);
       //int is_acc_msg = (addr == 0x343);
       int block_msg = is_lkas_msg || is_acc_msg;
       if (!block_msg) {
