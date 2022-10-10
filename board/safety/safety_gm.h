@@ -277,6 +277,15 @@ static int gm_tx_hook(CANPacket_t *to_send, bool longitudinal_allowed) {
 static int gm_fwd_hook(int bus_num, CANPacket_t *to_fwd) {
 
   int bus_fwd = -1;
+  int addr = GET_ADDR(to_fwd);
+
+  // If we are seeing 384 on bus 0, it means the relay is closed
+  // We use the opportunity to capture the stock LKAS RC
+  // Once relay is open, we shouldn't see 384 on bus 0
+  if (bus_num == 0 && addr == 384) {
+    gm_lkas_last_rc = GET_BYTE(to_fwd, 0) >> 4;
+    gm_lkas_last_ts = microsecond_timer_get();
+  }
 
   if (gm_hw == GM_CAM) {
     if (bus_num == 0) {
@@ -285,7 +294,7 @@ static int gm_fwd_hook(int bus_num, CANPacket_t *to_fwd) {
 
     if (bus_num == 2) {
       // block lkas message, forward all others
-      int addr = GET_ADDR(to_fwd);
+      //int addr = GET_ADDR(to_fwd);
       bool is_lkas_msg = (addr == 384);
       if (!is_lkas_msg) {
         bus_fwd = 0;
