@@ -216,10 +216,12 @@ static int gm_tx_hook(CANPacket_t *to_send, bool longitudinal_allowed) {
       tx = 0;
     }
 
+    //IMPORTANT: Conflicts with JYoung's fix - must be reverted!!
+
     //Check that approved LKAS message has correct rolling counter value and isn't arriving too soon
     if (tx == 1) {
       // TODO: handle sending inactive frame if delay approaching 200ms
-      
+
       uint32_t lkas_elapsed = get_ts_elapsed(ts, gm_lkas_last_ts);
       int expected_lkas_rc = (gm_lkas_last_rc + 1) % 4;
       //If less than 20ms have passed since last LKAS message or the rolling counter value isn't correct, drop it
