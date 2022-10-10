@@ -288,7 +288,7 @@ static int gm_fwd_hook(int bus_num, CANPacket_t *to_fwd) {
   }
 
   if (gm_hw == GM_CAM) {
-    if (bus_num == 0) {
+    if (bus_num == 0 && addr != 384) {
       bus_fwd = 2;
     }
 
