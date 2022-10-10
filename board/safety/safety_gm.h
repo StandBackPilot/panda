@@ -19,6 +19,7 @@ const int GM_DRIVER_TORQUE_FACTOR = 4;
 const int GM_MAX_GAS = 3072;
 const int GM_MAX_REGEN = 1404;
 const int GM_MAX_BRAKE = 400;
+const uint32_t GM_LKAS_MIN_INTERVAL = 16000;    // 20ms minimum between LKAS frames
 
 const CanMsg GM_ASCM_TX_MSGS[] = {{384, 0, 4}, {1033, 0, 7}, {1034, 0, 7}, {715, 0, 8}, {880, 0, 6},  // pt bus
                                   {161, 1, 7}, {774, 1, 8}, {776, 1, 7}, {784, 1, 2},   // obs bus
@@ -52,8 +53,10 @@ enum {
 
 enum {GM_ASCM, GM_CAM} gm_hw = GM_ASCM;
 bool gm_pcm_cruise = false;
-///uint32_t gm_start_ts = 0;
-uint32_t gm_last_lkas_ts = 0;
+
+//LKAS vars for ensuring in-order, correct timing
+int gm_lkas_last_rc = -1;
+uint32_t gm_lkas_last_ts = 0;
 
 static int gm_rx_hook(CANPacket_t *to_push) {
 
@@ -167,6 +170,7 @@ static int gm_tx_hook(CANPacket_t *to_send, bool longitudinal_allowed) {
 
   // LKA STEER: safety check
   if (addr == 384) {
+    int rolling_counter = GET_BYTE(to_send, 0) >> 4;
     int desired_torque = ((GET_BYTE(to_send, 0) & 0x7U) << 8) + GET_BYTE(to_send, 1);
     uint32_t ts = microsecond_timer_get();
     bool violation = 0;
@@ -211,20 +215,22 @@ static int gm_tx_hook(CANPacket_t *to_send, bool longitudinal_allowed) {
     if (violation) {
       tx = 0;
     }
-  }
 
-  //Last chance to catch too-soon frame
-  if (addr == 384) {
-    uint32_t ts2 = microsecond_timer_get();
-    uint32_t ts_elapsed = get_ts_elapsed(ts2, gm_last_lkas_ts);
-    // TODO: when tx is blocked, send inactive frames
-    // This doesn't handle the latching case
-    if (ts_elapsed <= 13000) { // Should be every 20ms, but it seems to tolerate down lower
-      // Hard 20ms cutoff was dropping WAY too many frames
-      tx = 0;
-    }
-    else {
-      gm_last_lkas_ts = ts2;
+    //Check that approved LKAS message has correct rolling counter value and isn't arriving too soon
+    if (tx == 1) {
+      // TODO: handle sending inactive frame if delay approaching 200ms
+      
+      uint32_t lkas_elapsed = get_ts_elapsed(ts, gm_lkas_last_ts);
+      int expected_lkas_rc = (gm_lkas_last_rc + 1) % 4;
+      //If less than 20ms have passed since last LKAS message or the rolling counter value isn't correct, drop it
+      if ((lkas_elapsed < GM_LKAS_MIN_INTERVAL) || (rolling_counter != expected_lkas_rc)) {
+        tx = 0;
+      }
+      else {
+        //otherwise, save values
+        gm_lkas_last_rc = rolling_counter;
+        gm_lkas_last_ts = ts;
+      }
     }
   }
 
