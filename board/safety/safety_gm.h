@@ -288,8 +288,13 @@ static int gm_fwd_hook(int bus_num, CANPacket_t *to_fwd) {
   }
 
   if (gm_hw == GM_CAM) {
-    if (bus_num == 0 && addr != 384) {
-      bus_fwd = 2;
+    if (bus_num == 0) {
+      bool is_lkas_msg = (addr == 384);
+      if (!is_lkas_msg) {
+        bus_fwd = 2;
+      }
+
+      //bus_fwd = 2;
     }
 
     if (bus_num == 2) {
