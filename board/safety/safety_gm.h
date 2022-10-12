@@ -41,7 +41,9 @@ AddrCheckStruct gm_addr_checks[] = {
   {.msg = {{388, 0, 8, .expected_timestep = 100000U}, { 0 }, { 0 }}},
   {.msg = {{842, 0, 5, .expected_timestep = 100000U}, { 0 }, { 0 }}},
   {.msg = {{481, 0, 7, .expected_timestep = 100000U}, { 0 }, { 0 }}},
-  {.msg = {{241, 0, 6, .expected_timestep = 100000U}, { 0 }, { 0 }}},
+  {.msg = {{190, 0, 6, .expected_timestep = 100000U},    // Volt, Silverado, Acadia Denali
+           {190, 0, 7, .expected_timestep = 100000U},    // Bolt EUV
+           {190, 0, 8, .expected_timestep = 100000U}}},  // Escalade
   {.msg = {{452, 0, 8, .expected_timestep = 100000U}, { 0 }, { 0 }}},
 };
 #define GM_RX_CHECK_LEN (sizeof(gm_addr_checks) / sizeof(gm_addr_checks[0]))
@@ -61,6 +63,7 @@ enum {
 enum {GM_ASCM, GM_CAM, GM_CAM_CC} gm_hw = GM_ASCM;
 
 bool gm_op_aeb = false;
+bool gm_pcm_cruise = false;
 
 static int gm_rx_hook(CANPacket_t *to_push) {
 
@@ -82,10 +85,8 @@ static int gm_rx_hook(CANPacket_t *to_push) {
       vehicle_moving = GET_BYTE(to_push, 0) | GET_BYTE(to_push, 1);
     }
 
-    // (A)CC steering wheel buttons ignored in GM_CAM mode
-    // ASCMSteeringButton
-    if ((addr == 481) && (gm_hw == GM_ASCM || gas_interceptor_detected)) {
-      // ACCButtons
+    // ACC steering wheel buttons (GM_CAM is tied to the PCM)
+    if ((addr == 481) && !gm_pcm_cruise) {
       int button = (GET_BYTE(to_push, 5) & 0x70U) >> 4;
 
       // exit controls on cancel press
@@ -103,10 +104,10 @@ static int gm_rx_hook(CANPacket_t *to_push) {
       cruise_button_prev = button;
     }
 
-    if (addr == 241) {
-      // Brake pedal's potentiometer returns near-zero reading
-      // even when pedal is not pressed
-      brake_pressed = GET_BYTE(to_push, 1) >= 10U;
+    if (addr == 190) {
+      // Reference for signal and threshold:
+      // https://github.com/commaai/openpilot/blob/master/selfdrive/car/gm/carstate.py
+      brake_pressed = GET_BYTE(to_push, 1) >= 8U;
     }
 
     // AcceleratorPedal2
@@ -114,8 +115,7 @@ static int gm_rx_hook(CANPacket_t *to_push) {
       gas_pressed = GET_BYTE(to_push, 5) != 0U;
 
       // enter controls on rising edge of ACC, exit controls when ACC off
-      if (gm_hw == GM_CAM) {
-        // TODO: Not all non-zero values are "engaged": 4 "Standstill" 3 "Faulted" 1 "Active" 0 "Off"
+      if (gm_pcm_cruise) {
         bool cruise_engaged = (GET_BYTE(to_push, 1) >> 5) != 0U;
         pcm_cruise_check(cruise_engaged);
       }
@@ -136,6 +136,7 @@ static int gm_rx_hook(CANPacket_t *to_push) {
     // Pedal Interceptor
     if (addr == 513) {
       gas_interceptor_detected = 1;
+      gm_pcm_cruise = false;
       int gas_interceptor = GM_GET_INTERCEPTOR(to_push);
       gas_pressed = gas_interceptor > GM_GAS_INTERCEPTOR_THRESHOLD;
       gas_interceptor_prev = gas_interceptor;
@@ -266,21 +267,13 @@ static int gm_tx_hook(CANPacket_t *to_send, bool longitudinal_allowed) {
   }
 
   // BUTTONS: used for resume spamming and cruise cancellation with stock longitudinal
-  if ((addr == 481) && (gm_hw == GM_CAM || gm_hw == GM_CAM_CC)) {
-    int accButton = (GET_BYTE(to_send, 5) >> 4) & 0x7U;
-    bool allowed_btn = (accButton == GM_BTN_CANCEL) && cruise_engaged_prev;
-    // For standard CC, allow spamming of SET / RESUME
-    allowed_btn |= cruise_engaged_prev && (gm_hw == GM_CAM_CC) && (accButton == GM_BTN_SET || accButton == GM_BTN_RESUME || accButton == GM_BTN_UNPRESS);
-    // TODO: With a Pedal, CC needs to be canceled 
+    // BUTTONS: used for resume spamming and cruise cancellation with stock longitudinal
+  if ((addr == 481) && (gm_pcm_cruise || gm_hw == GM_CAM_CC)) {
+    int button = (GET_BYTE(to_send, 5) >> 4) & 0x7U;
 
-    if (!allowed_btn) {
-      tx = 0;
-    }
-
-    // TODO: Establish conditions for button spams in CC mode
-    // Note: in CC mode, allow all button presses for now
-    bool allowed_button = (gm_hw == GM_CAM_CC);
-    if (!allowed_button) {
+    bool allowed_cancel = (button == 6) && cruise_engaged_prev;
+    allowed_cancel = (gm_hw == GM_CAM_CC);
+    if (!allowed_cancel) {
       tx = 0;
     }
   }
@@ -320,12 +313,10 @@ static int gm_fwd_hook(int bus_num, CANPacket_t *to_fwd) {
 }
 
 static const addr_checks* gm_init(uint16_t param) {
-  gm_hw = GET_FLAG(param, GM_PARAM_HW_CAM) ? GM_CAM : GM_ASCM;
-  if (gm_hw == GM_CAM && GET_FLAG(param, GM_PARAM_HW_CAM_CC)) {
-    gm_hw = GM_CAM_CC;
-  }
+  gm_hw = GET_FLAG(param, GM_PARAM_HW_CAM) ? GM_CAM : GET_FLAG(param, GM_PARAM_HW_CAM_CC) ? GM_CAM_CC: GM_ASCM;
 
   gm_op_aeb = GET_FLAG(param, GM_PARAM_OP_AEB);
+  gm_pcm_cruise = gm_hw == GM_CAM;
   return &gm_rx_checks;
 }
 
