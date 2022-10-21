@@ -28,15 +28,16 @@ const int GM_INACTIVE_REGEN = 1404;
 const int GM_GAS_INTERCEPTOR_THRESHOLD = 458; // (610 + 306.25) / 2 ratio between offset and gain from dbc file
 #define GM_GET_INTERCEPTOR(msg) (((GET_BYTE((msg), 0) << 8) + GET_BYTE((msg), 1) + (GET_BYTE((msg), 2) << 8) + GET_BYTE((msg), 3)) / 2U) // avg between 2 tracks
 
-const CanMsg GM_ASCM_TX_MSGS[] = {{384, 0, 4}, {1033, 0, 7}, {1034, 0, 7}, {715, 0, 8}, {880, 0, 6}, {800, 0, 6}, {512, 0, 6},  // pt bus
+const CanMsg GM_ASCM_TX_MSGS[] = {{384, 0, 4}, {1033, 0, 7}, {1034, 0, 7}, {715, 0, 8}, {880, 0, 6}, {800, 0, 6}, {512, 0, 6}, {481, 0, 7},  // pt bus
                                   {161, 1, 7}, {774, 1, 8}, {776, 1, 7}, {784, 1, 2},   // obs bus
                                   {789, 2, 5},  // ch bus
                                   {0x104c006c, 3, 3}, {0x10400060, 3, 5}};  // gmlan
 
-const CanMsg GM_CAM_TX_MSGS[] = {{384, 0, 4}, {800, 0, 6}, {512, 0, 6},  // pt bus
+const CanMsg GM_CAM_TX_MSGS[] = {{384, 0, 4}, {800, 0, 6}, {512, 0, 6}, {481, 0, 7}, // pt bus
                                  {481, 2, 7}, {388, 2, 8}};  // camera bus
 
-const CanMsg GM_CAM_CC_TX_MSGS[] = {{384, 0, 4}, {481, 0, 7}, {512, 0, 6}};  // pt bus
+const CanMsg GM_CAM_CC_TX_MSGS[] = {{384, 0, 4}, {481, 0, 7}, {512, 0, 6},
+                                    {388, 2, 8}};  // pt bus
 
 // TODO: do checksum and counter checks. Add correct timestep, 0.1s for now.
 AddrCheckStruct gm_addr_checks[] = {
