@@ -23,12 +23,12 @@ const int GM_MAX_REGEN = 1404;
 const int GM_MAX_BRAKE = 400;
 const int GM_INACTIVE_REGEN = 1404;
 
-const CanMsg GM_ASCM_TX_MSGS[] = {{384, 0, 4}, {1033, 0, 7}, {1034, 0, 7}, {715, 0, 8}, {880, 0, 6},  // pt bus
+const CanMsg GM_ASCM_TX_MSGS[] = {{384, 0, 4}, {1033, 0, 7}, {1034, 0, 7}, {715, 0, 8}, {880, 0, 6}, {800, 0, 6},  // pt bus
                                   {161, 1, 7}, {774, 1, 8}, {776, 1, 7}, {784, 1, 2},   // obs bus
                                   {789, 2, 5},  // ch bus
                                   {0x104c006c, 3, 3}, {0x10400060, 3, 5}};  // gmlan
 
-const CanMsg GM_CAM_TX_MSGS[] = {{384, 0, 4},  // pt bus
+const CanMsg GM_CAM_TX_MSGS[] = {{384, 0, 4}, {800, 0, 6},  // pt bus
                                  {481, 2, 7}, {388, 2, 8}};  // camera bus
 
 const CanMsg GM_CAM_CC_TX_MSGS[] = {{384, 0, 4}, {481, 0, 7}};  // pt bus
@@ -48,6 +48,7 @@ addr_checks gm_rx_checks = {gm_addr_checks, GM_RX_CHECK_LEN};
 
 const uint16_t GM_PARAM_HW_CAM = 1;
 const uint16_t GM_PARAM_HW_CAM_CC = 4;
+const uint16_t GM_PARAM_OP_AEB = 16;
 
 enum {
   GM_BTN_UNPRESS = 1,
@@ -59,6 +60,7 @@ enum {
 enum {GM_ASCM, GM_CAM, GM_CAM_CC} gm_hw = GM_ASCM;
 bool gm_pcm_cruise = false;
 
+bool gm_op_aeb = false;
 
 static int gm_rx_hook(CANPacket_t *to_push) {
 
@@ -274,6 +276,11 @@ static int gm_tx_hook(CANPacket_t *to_send, bool longitudinal_allowed) {
     }
   }
 
+  if (addr == 800) {
+    //TODO: Ensure only valid values are send
+  }
+
+
   // 1 allows the message through
   return tx;
 }
@@ -295,7 +302,9 @@ static int gm_fwd_hook(int bus_num, CANPacket_t *to_fwd) {
     if (bus_num == 2) {
       // block lkas message, forward all others
       bool is_lkas_msg = (addr == 384);
-      if (!is_lkas_msg) {
+      // If OP is handling AEB, block AEB as well
+      bool is_aeb_msg = (addr == 800);
+      if (!is_lkas_msg || (!is_aeb_msg && gm_op_aeb)) {
         bus_fwd = 0;
       }
     }
@@ -309,7 +318,7 @@ static const addr_checks* gm_init(uint16_t param) {
           GET_FLAG(param, GM_PARAM_HW_CAM) ? GM_CAM : GM_ASCM;
   
   gm_pcm_cruise = ((gm_hw == GM_CAM) || (gm_hw == GM_CAM_CC));
-
+  gm_op_aeb = GET_FLAG(param, GM_PARAM_OP_AEB);
   return &gm_rx_checks;
 }
 
