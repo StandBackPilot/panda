@@ -36,7 +36,7 @@ const CanMsg GM_ASCM_TX_MSGS[] = {{384, 0, 4}, {1033, 0, 7}, {1034, 0, 7}, {715,
 const CanMsg GM_CAM_TX_MSGS[] = {{384, 0, 4}, {800, 0, 6}, {512, 0, 6}, {481, 0, 7}, // pt bus
                                  {481, 2, 7}, {388, 2, 8}};  // camera bus
 
-const CanMsg GM_CAM_CC_TX_MSGS[] = {{384, 0, 4}, {481, 0, 7}, {512, 0, 6},
+const CanMsg GM_CAM_CC_TX_MSGS[] = {{384, 0, 4}, {481, 0, 7}, {512, 0, 6}, {800, 0, 6},
                                     {388, 2, 8}};  // pt bus
 
 // TODO: do checksum and counter checks. Add correct timestep, 0.1s for now.
@@ -118,7 +118,7 @@ static int gm_rx_hook(CANPacket_t *to_push) {
       }
     }
 
-    if (addr == 452) {
+    if (addr == 452 && !gas_interceptor_detected) {
       gas_pressed = GET_BYTE(to_push, 5) != 0U;
 
       // enter controls on rising edge of ACC, exit controls when ACC off
@@ -284,18 +284,11 @@ static int gm_tx_hook(CANPacket_t *to_send, bool longitudinal_allowed) {
   }
 
   // BUTTONS: used for resume spamming and cruise cancellation with stock longitudinal
-  if ((addr == 481) && gm_pcm_cruise) {
+  if ((addr == 481)) {
     int button = (GET_BYTE(to_send, 5) >> 4) & 0x7U;
 
-    bool allowed_cancel = (button == 6) && cruise_engaged_prev;
+    bool allowed_cancel = (gm_hw == GM_CAM_CC) || ((button == 6) && cruise_engaged_prev);
     if (!allowed_cancel) {
-      tx = 0;
-    }
-
-    // TODO: Establish conditions for button spams in CC mode
-    // Note: in CC mode, allow all button presses for now
-    bool allowed_button = (gm_hw == GM_CAM_CC);
-    if (!allowed_button) {
       tx = 0;
     }
   }
