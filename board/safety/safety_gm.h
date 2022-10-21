@@ -327,7 +327,8 @@ static int gm_fwd_hook(int bus_num, CANPacket_t *to_fwd) {
       bool is_lkas_msg = (addr == 384);
       // If OP is handling AEB, block AEB as well
       bool is_aeb_msg = (addr == 800);
-      if (!is_lkas_msg || (!is_aeb_msg && gm_op_aeb)) {
+      
+      if (!is_lkas_msg && (!is_aeb_msg && gm_op_aeb)) {
         bus_fwd = 0;
       }
     }
