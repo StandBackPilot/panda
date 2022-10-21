@@ -96,10 +96,13 @@ int comms_control_handler(ControlPacket_t *req, uint8_t *resp) {
 #define CAN_GAS_SIZE 6
 #define COUNTER_CYCLE 0xFU
 
-#define XFORM_MODE_UNKNOWN 0U
-#define XFORM_MODE_NORMAL 1U
-#define XFORM_MODE_GM 2U
-uint16_t xform_mode = XFORM_MODE_GM;
+// GM Ignition signal - could be used to detect GM, but message is used in other brands (with different size)
+//#define GM_MSG_ID 0x160U
+//#define GM_MSG_LEN 5U
+
+enum {HW_STD, HW_GM} hw = HW_STD;
+bool hw_detected = false;
+
 
 void CAN1_TX_IRQ_Handler(void) {
   // clear interrupt
@@ -245,7 +248,22 @@ void TIM3_IRQ_Handler(void) {
   }
 }
 
-// Scale values from the ADC to compensate for GM's unusual electrical characteristics
+void detect_hw(void) {
+  uint32_t pdl0_test = adc_get(ADCCHAN_ACCEL0);
+  uint32_t pdl1_test = adc_get(ADCCHAN_ACCEL1);
+  //GM pedals have signal1 and 2 swapped, so 1 is less than 2.
+  //GM's high impedence causes the ADC to return low values. Unpressed is about 200 for channel 1,
+  // 400 for channel 2. Selected detection threshold with 80 unit buffer.
+  if ((pdl0_test < pdl1_test) && (pdl0_test < 280) && (pdl1_test < 480)) {
+    hw = HW_GM;
+    hw_detected = true;
+  } else {
+    hw = HW_STD;
+    hw_detected = true;
+  }
+}
+
+// Scale values from the ADC to compensate for GM's 10 M-ohm impedence.
 uint32_t gm_transform_adc(uint32_t readVal) {
   return ((readVal * 1545U) / 1000U) + 25U;
 }
@@ -253,8 +271,14 @@ uint32_t gm_transform_adc(uint32_t readVal) {
 // ***************************** main code *****************************
 
 void pedal(void) {
+  // Detect hw env. Currently GM is the only HW that requires transformation of ADC values
+  // This is because GM uses 10 M-ohm impedence, whereas other brands use 1 K-ohm
+  if (!hw_detected) {
+    detect_hw();
+  }
+
   // read/write
-  if (xform_mode == XFORM_MODE_GM) {
+  if (hw == HW_GM) {
     pdl0 = gm_transform_adc(adc_get(ADCCHAN_ACCEL0));
     pdl1 = gm_transform_adc(adc_get(ADCCHAN_ACCEL1));
   }
