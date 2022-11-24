@@ -1,3 +1,6 @@
+// Pedal firmware for higher impedence boards (100k instread of 1k)
+// In theory, it should be backwards compatible with non-GM forks
+// It is NOT compatible with low-impedence hardware in GM vehicles
 // ********************* Includes *********************
 //#define PEDAL_USB
 #include "../config.h"
@@ -241,19 +244,14 @@ void TIM3_IRQ_Handler(void) {
   }
 }
 
-// This scales the values read from the ADC to match the expected values for the Chevy Bolt EV
-// GM has a 10 M-ohm impedence; Pedal is configured for 1K-ohm
-// Such manual adjustment are considered an acceptable, if less-than-ideal solution to impedence mismatches
-uint32_t adjust(uint32_t readVal) {
-  return ((readVal * 1545)/1000) + 25;
-}
+
 
 // ***************************** main code *****************************
 
 void pedal(void) {
   // read/write
-  pdl0 = adjust(adc_get(ADCCHAN_ACCEL0));
-  pdl1 = adjust(adc_get(ADCCHAN_ACCEL1));
+  pdl0 = adc_get(ADCCHAN_ACCEL0);
+  pdl1 = adc_get(ADCCHAN_ACCEL1);
 
 
 
