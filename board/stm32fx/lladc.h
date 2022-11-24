@@ -13,7 +13,7 @@ void register_set(volatile uint32_t *addr, uint32_t val, uint32_t mask);
 void adc_init(void) {
   register_set(&(ADC->CCR), ADC_CCR_TSVREFE | ADC_CCR_VBATE, 0xC30000U);
   register_set(&(ADC1->CR2), ADC_CR2_ADON, 0xFF7F0F03U);
-  register_set(&(ADC1->SMPR1), ADC_SMPR1_SMP12 | ADC_SMPR1_SMP13, 0x7FFFFFFU);
+  register_set(&(ADC1->SMPR1), ADC_SMPR1_SMP12 | ADC_SMPR1_SMP12_2 | ADC_SMPR1_SMP13 | ADC_SMPR1_SMP13_2, 0x7FFFFFFU);
 }
 
 uint32_t adc_get(unsigned int channel) {
