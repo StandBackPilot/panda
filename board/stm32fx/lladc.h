@@ -11,10 +11,39 @@
 void register_set(volatile uint32_t *addr, uint32_t val, uint32_t mask);
 
 void adc_init(void) {
+  // ADC_CCR_ADCPRE
+  /*
+  17:16 ADCPRE: ADC prescaler
+Set and cleared by software to select the frequency of the clock to the ADC. The clock is
+common for all the ADCs.
+Note: 00: PCLK2 divided by 2
+01: PCLK2 divided by 4
+10: PCLK2 divided by 6
+11: PCLK2 divided by 8
+
+define  ADC_CCR_ADCPRE                      0x00030000U        <ADCPRE[1:0] bits (ADC prescaler) 
+define  ADC_CCR_ADCPRE_0                    0x00010000U        !<Bit 0 
+define  ADC_CCR_ADCPRE_1
+
+*/
+
+  // Set ADC clock prescaler to divide by 4 maybe
+  // register_set(&(ADC->CCR), ADC_CCR_TSVREFE | ADC_CCR_VBATE | ADC_CCR_ADCPRE_1, 0xC30000U);
+  
   register_set(&(ADC->CCR), ADC_CCR_TSVREFE | ADC_CCR_VBATE, 0xC30000U);
   register_set(&(ADC1->CR2), ADC_CR2_ADON, 0xFF7F0F03U);
-  register_set(&(ADC1->SMPR1), ADC_SMPR1_SMP12 | ADC_SMPR1_SMP12_0 | ADC_SMPR1_SMP12_1 | ADC_SMPR1_SMP12_2 |
-                               ADC_SMPR1_SMP13 | ADC_SMPR1_SMP13_0 | ADC_SMPR1_SMP13_1 | ADC_SMPR1_SMP13_2, 0x7FFFFFFU);
+  // This should be maxing out the sample interval - 480 cycles
+  register_set(&(ADC1->SMPR1), ADC_SMPR1_SMP12_0 | ADC_SMPR1_SMP12_1 | ADC_SMPR1_SMP12_2 |
+                               ADC_SMPR1_SMP13_0 | ADC_SMPR1_SMP13_1 | ADC_SMPR1_SMP13_2, 0x7FFFFFFU);
+  /*
+000: 3 cycles
+001: 15 cycles
+010: 28 cycles
+011: 56 cycles
+100: 84 cycles
+101: 112 cycles
+110: 144 cycles
+111: 480 cycles*/
 }
 
 uint32_t adc_get(unsigned int channel) {
