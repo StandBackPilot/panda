@@ -8,7 +8,7 @@ OTHER_GMLAN_BUS = 1
 
 def can_logger():
   p = Panda()
-  p.set_gmlan(True)
+  p.set_obd(True)
   p.set_safety_mode(Panda.SAFETY_SILENT)
 
   try:
