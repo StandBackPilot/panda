@@ -20,6 +20,11 @@ const int GM_MAX_GAS = 3072;
 const int GM_MAX_REGEN = 1404;
 const int GM_MAX_BRAKE = 350;
 
+// panda interceptor threshold needs to be equivalent to openpilot threshold to avoid controls mismatches
+// If thresholds are mismatched then it is possible for panda to see the gas fall and rise while openpilot is in the pre-enabled state
+const int GM_GAS_INTERCEPTOR_THRESHOLD = 458; // (610 + 306.25) / 2 ratio between offset and gain from dbc file
+#define GM_GET_INTERCEPTOR(msg) (((GET_BYTE((msg), 0) << 8) + GET_BYTE((msg), 1) + (GET_BYTE((msg), 2) << 8) + GET_BYTE((msg), 3)) / 2U) // avg between 2 tracks
+
 const CanMsg GM_ASCM_TX_MSGS[] = {{384, 0, 4}, {1033, 0, 7}, {1034, 0, 7}, {715, 0, 8}, {880, 0, 6},  // pt bus
                                   {161, 1, 7}, {774, 1, 8}, {776, 1, 7}, {784, 1, 2},   // obs bus
                                   {789, 2, 5},  // ch bus
@@ -27,6 +32,9 @@ const CanMsg GM_ASCM_TX_MSGS[] = {{384, 0, 4}, {1033, 0, 7}, {1034, 0, 7}, {715,
 
 const CanMsg GM_CAM_TX_MSGS[] = {{384, 0, 4},  // pt bus
                                  {481, 2, 7}};  // camera bus
+                                
+const CanMsg GM_CAM_CC_TX_MSGS[] = {{384, 0, 4}, {481, 0, 7}, {512, 0, 6}};  // pt bus
+                                 
 
 // TODO: do checksum and counter checks. Add correct timestep, 0.1s for now.
 AddrCheckStruct gm_addr_checks[] = {
@@ -40,6 +48,7 @@ AddrCheckStruct gm_addr_checks[] = {
 addr_checks gm_rx_checks = {gm_addr_checks, GM_RX_CHECK_LEN};
 
 const uint16_t GM_PARAM_HW_CAM = 1;
+const uint16_t GM_PARAM_HW_CAM_CC = 4;
 
 enum {
   GM_BTN_UNPRESS = 1,
@@ -48,7 +57,7 @@ enum {
   GM_BTN_CANCEL = 6,
 };
 
-enum {GM_ASCM, GM_CAM} gm_hw = GM_ASCM;
+enum {GM_ASCM, GM_CAM, GM_CAM_CC} gm_hw = GM_ASCM;
 
 static int gm_rx_hook(CANPacket_t *to_push) {
 
@@ -70,8 +79,10 @@ static int gm_rx_hook(CANPacket_t *to_push) {
       vehicle_moving = GET_BYTE(to_push, 0) | GET_BYTE(to_push, 1);
     }
 
-    // ACC steering wheel buttons (GM_CAM is tied to the PCM)
-    if ((addr == 481) && (gm_hw == GM_ASCM)) {
+    // (A)CC steering wheel buttons ignored in GM_CAM mode
+    // ASCMSteeringButton
+    if ((addr == 481) && (gm_hw == GM_ASCM || gas_interceptor_detected)) {
+      // ACCButtons
       int button = (GET_BYTE(to_push, 5) & 0x70U) >> 4;
 
       // exit controls on cancel press
@@ -95,18 +106,36 @@ static int gm_rx_hook(CANPacket_t *to_push) {
       brake_pressed = GET_BYTE(to_push, 1) >= 10U;
     }
 
+    // AcceleratorPedal2
     if (addr == 452) {
       gas_pressed = GET_BYTE(to_push, 5) != 0U;
 
       // enter controls on rising edge of ACC, exit controls when ACC off
       if (gm_hw == GM_CAM) {
+        // TODO: Not all non-zero values are "engaged": 4 "Standstill" 3 "Faulted" 1 "Active" 0 "Off"
         bool cruise_engaged = (GET_BYTE(to_push, 1) >> 5) != 0U;
         pcm_cruise_check(cruise_engaged);
       }
     }
 
+    // Standard CC state is in ECMEngineStatus
+    // enter controls on rising edge of CC, exit controls when CC off
+    // PCM Cruise not used with Pedal Interceptor
+    if ((addr == 201) && (gm_hw == GM_CAM_CC && !gas_interceptor_detected)) {
+      bool cruise_engaged = (GET_BYTE(to_push, 3) >> 6) == 1U;
+      pcm_cruise_check(cruise_engaged);
+    }
+
     if (addr == 189) {
       regen_braking = (GET_BYTE(to_push, 0) >> 4) != 0U;
+    }
+
+    // Pedal Interceptor
+    if (addr == 513) {
+      gas_interceptor_detected = 1;
+      int gas_interceptor = GM_GET_INTERCEPTOR(to_push);
+      gas_pressed = gas_interceptor > GM_GAS_INTERCEPTOR_THRESHOLD;
+      gas_interceptor_prev = gas_interceptor;
     }
 
     bool stock_ecu_detected = (addr == 384);  // ASCMLKASteeringCmd
@@ -133,6 +162,8 @@ static int gm_tx_hook(CANPacket_t *to_send, bool longitudinal_allowed) {
 
   if (gm_hw == GM_CAM) {
     tx = msg_allowed(to_send, GM_CAM_TX_MSGS, sizeof(GM_CAM_TX_MSGS)/sizeof(GM_CAM_TX_MSGS[0]));
+  } else if (gm_hw == GM_CAM_CC) {
+    tx = msg_allowed(to_send, GM_CAM_CC_TX_MSGS, sizeof(GM_CAM_CC_TX_MSGS)/sizeof(GM_CAM_CC_TX_MSGS[0]));
   } else {
     tx = msg_allowed(to_send, GM_ASCM_TX_MSGS, sizeof(GM_ASCM_TX_MSGS)/sizeof(GM_ASCM_TX_MSGS[0]));
   }
@@ -232,11 +263,14 @@ static int gm_tx_hook(CANPacket_t *to_send, bool longitudinal_allowed) {
   }
 
   // BUTTONS: used for resume spamming and cruise cancellation with stock longitudinal
-  if ((addr == 481) && (gm_hw == GM_CAM)) {
-    int button = (GET_BYTE(to_send, 5) >> 4) & 0x7U;
+  if ((addr == 481) && (gm_hw == GM_CAM || gm_hw == GM_CAM_CC)) {
+    int accButton = (GET_BYTE(to_send, 5) >> 4) & 0x7U;
+    bool allowed_btn = (accButton == GM_BTN_CANCEL) && cruise_engaged_prev;
+    // For standard CC, allow spamming of SET / RESUME
+    allowed_btn |= cruise_engaged_prev && (gm_hw == GM_CAM_CC) && (accButton == GM_BTN_SET || accButton == GM_BTN_RESUME || accButton == GM_BTN_UNPRESS);
+    // TODO: With a Pedal, CC needs to be canceled 
 
-    bool allowed_cancel = (button == 6) && cruise_engaged_prev;
-    if (!allowed_cancel) {
+    if (!allowed_btn) {
       tx = 0;
     }
   }
@@ -249,7 +283,7 @@ static int gm_fwd_hook(int bus_num, CANPacket_t *to_fwd) {
 
   int bus_fwd = -1;
 
-  if (gm_hw == GM_CAM) {
+  if (gm_hw == GM_CAM || gm_hw == GM_CAM_CC) {
     if (bus_num == 0) {
       bus_fwd = 2;
     }
@@ -269,6 +303,9 @@ static int gm_fwd_hook(int bus_num, CANPacket_t *to_fwd) {
 
 static const addr_checks* gm_init(uint16_t param) {
   gm_hw = GET_FLAG(param, GM_PARAM_HW_CAM) ? GM_CAM : GM_ASCM;
+  if (gm_hw == GM_CAM && GET_FLAG(param, GM_PARAM_HW_CAM_CC)) {
+    gm_hw = GM_CAM_CC;
+  }
   return &gm_rx_checks;
 }
 
