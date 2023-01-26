@@ -194,7 +194,7 @@ static int gm_tx_hook(CANPacket_t *to_send) {
 
   // GAS: safety check (interceptor)
   if (addr == 512) {
-    if (!current_controls_allowed || !longitudinal_allowed) {
+    if (!controls_allowed) {  // TODO: Revisit this
       if (GET_BYTE(to_send, 0) || GET_BYTE(to_send, 1)) {
         tx = 0;
       }
