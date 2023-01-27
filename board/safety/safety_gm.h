@@ -121,8 +121,14 @@ static int gm_rx_hook(CANPacket_t *to_push) {
       brake_pressed = GET_BIT(to_push, 40U) != 0U;
     }
 
+    if ((addr == 241) && (gm_hw == GM_CAM_CC)) {
+      brake_pressed = GET_BYTE(to_push, 1) >= 8U;
+    }
+
     if (addr == 452) {
-      gas_pressed = GET_BYTE(to_push, 5) != 0U;
+      if (!gas_interceptor_detected) {
+        gas_pressed = GET_BYTE(to_push, 5) != 0U;
+      }
 
       // enter controls on rising edge of ACC, exit controls when ACC off
       if (gm_pcm_cruise) {
