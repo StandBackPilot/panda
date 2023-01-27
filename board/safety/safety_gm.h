@@ -247,7 +247,7 @@ static int gm_fwd_hook(int bus_num, CANPacket_t *to_fwd) {
 
   int bus_fwd = -1;
 
-  if (gm_hw == GM_CAM) {
+  if (gm_hw == GM_CAM || gm_hw == GM_CAM_CC) {
     int addr = GET_ADDR(to_fwd);
     if (bus_num == 0) {
       // block PSCMStatus; forwarded through openpilot to hide an alert from the camera
@@ -281,6 +281,8 @@ static const addr_checks* gm_init(uint16_t param) {
     gm_long_limits = &GM_ASCM_LONG_LIMITS;
   } else if (gm_hw == GM_CAM) {
     gm_long_limits = &GM_CAM_LONG_LIMITS;
+  } else if (gm_hw == GM_CAM_CC) {
+    gm_long_limits = &GM_ASCM_LONG_LIMITS;
   } else {
   }
 
