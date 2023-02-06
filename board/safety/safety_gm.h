@@ -164,7 +164,7 @@ static int gm_tx_hook(CANPacket_t *to_send) {
   if (gm_hw == GM_CAM) {
     if (gm_cam_long) {
       tx = msg_allowed(to_send, GM_CAM_LONG_TX_MSGS, sizeof(GM_CAM_LONG_TX_MSGS)/sizeof(GM_CAM_LONG_TX_MSGS[0]));
-    else if (gm_cam_cc) {
+    } else if (gm_cam_cc) {
       tx = msg_allowed(to_send, GM_CAM_CC_TX_MSGS, sizeof(GM_CAM_CC_TX_MSGS)/sizeof(GM_CAM_CC_TX_MSGS[0]));
     } else {
       tx = msg_allowed(to_send, GM_CAM_TX_MSGS, sizeof(GM_CAM_TX_MSGS)/sizeof(GM_CAM_TX_MSGS[0]));
