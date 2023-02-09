@@ -124,7 +124,7 @@ int get_bit_message(char *out, CANPacket_t *to_bang) {
 void TIM12_IRQ_Handler(void);
 
 void setup_timer(void) {
-  // register interrupt
+  // register interrupt (25 hz, 40,000us)
   REGISTER_INTERRUPT(TIM8_BRK_TIM12_IRQn, TIM12_IRQ_Handler, 40000U, FAULT_INTERRUPT_RATE_GMLAN)
 
   // setup

@@ -267,7 +267,7 @@ int main(void) {
   REGISTER_INTERRUPT(CAN1_RX0_IRQn, CAN1_RX0_IRQ_Handler, CAN_INTERRUPT_RATE, FAULT_INTERRUPT_RATE_CAN_1)
   REGISTER_INTERRUPT(CAN1_SCE_IRQn, CAN1_SCE_IRQ_Handler, CAN_INTERRUPT_RATE, FAULT_INTERRUPT_RATE_CAN_1)
   
-  // Should run at around 732Hz (see init below)
+  // Should run at around 732Hz (see init below) (732hz = 1366 us)
   REGISTER_INTERRUPT(TIM3_IRQn, TIM3_IRQ_Handler, 1000U, FAULT_INTERRUPT_RATE_TIM3)
 
   disable_interrupts();
@@ -299,6 +299,8 @@ int main(void) {
   UNUSED(ret);
 
   // 48mhz / 65536 ~= 732
+  // TODO JJS: This is the only place timer_init is called
+  // I don't think it is setting the rate expected...
   timer_init(TIM3, 15);
   NVIC_EnableIRQ(TIM3_IRQn);
 

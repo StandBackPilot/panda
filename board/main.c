@@ -368,6 +368,11 @@ int main(void) {
   REGISTER_INTERRUPT(TICK_TIMER_IRQ, tick_handler, 10U, FAULT_INTERRUPT_RATE_TICK)
   tick_timer_init();
 
+  // 1kHz timer - every 1 ms
+  REGISTER_INTERRUPT(EVT_TIMER_IRQ, evt_handler, 1000U, FAULT_INTERRUPT_RATE_EVT)
+  evt_timer_init();
+
+
 #ifdef DEBUG
   print("DEBUG ENABLED\n");
 #endif

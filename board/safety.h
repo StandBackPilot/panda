@@ -81,6 +81,14 @@ int safety_fwd_hook(int bus_num, CANPacket_t *to_fwd) {
   return (relay_malfunction ? -1 : current_hooks->fwd(bus_num, to_fwd));
 }
 
+int safety_evt_hook(int evt_id) {
+  return (relay_malfunction ? -1 : current_hooks->evt(evt_id));
+}
+
+bool safety_handles_relay(void) {
+  return current_hooks->handles_relay();
+}
+
 bool get_longitudinal_allowed(void) {
   return controls_allowed && !gas_pressed_prev;
 }

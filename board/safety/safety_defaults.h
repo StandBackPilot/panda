@@ -33,12 +33,23 @@ static int default_fwd_hook(int bus_num, CANPacket_t *to_fwd) {
   return -1;
 }
 
+static int default_evt_hook(int evt_id) {
+  UNUSED(evt_id);
+  return -1;
+}
+
+static bool default_handles_relay_hook(void) {
+  return false;
+}
+
 const safety_hooks nooutput_hooks = {
   .init = nooutput_init,
   .rx = default_rx_hook,
   .tx = nooutput_tx_hook,
   .tx_lin = nooutput_tx_lin_hook,
   .fwd = default_fwd_hook,
+  .evt = default_evt_hook,
+  .handles_relay = default_handles_relay_hook
 };
 
 // *** all output safety mode ***

@@ -177,7 +177,7 @@ static int gm_tx_hook(CANPacket_t *to_send) {
     desired_torque = to_signed(desired_torque, 11);
 
     if (steer_torque_cmd_checks(desired_torque, -1, GM_STEERING_LIMITS)) {
-      tx = 0;
+      tx = 0; //TODO: This is never ok...
     }
   }
 
@@ -217,6 +217,7 @@ static int gm_fwd_hook(int bus_num, CANPacket_t *to_fwd) {
   if (gm_hw == GM_CAM) {
     int addr = GET_ADDR(to_fwd);
     if (bus_num == 0) {
+      // TODO: It would be better to block the alert...
       // block PSCMStatus; forwarded through openpilot to hide an alert from the camera
       bool is_pscm_msg = (addr == 388);
       if (!is_pscm_msg) {
@@ -238,9 +239,19 @@ static int gm_fwd_hook(int bus_num, CANPacket_t *to_fwd) {
   return bus_fwd;
 }
 
+int gm_evt_hook(int evt_id) {
+  UNUSED(evt_id);
+  uint32_t ts = microsecond_timer_get();
+  print("EVT @ ");
+  putui(ts);
+  print("\n");
+  return 1;
+}
+
 static const addr_checks* gm_init(uint16_t param) {
   gm_hw = GET_FLAG(param, GM_PARAM_HW_CAM) ? GM_CAM : GM_ASCM;
-
+  // TODO: Do we register event(s) desired timing (in ms)?
+  // Or pass in the counter and use mod?
   if (gm_hw == GM_ASCM) {
     gm_long_limits = &GM_ASCM_LONG_LIMITS;
   } else if (gm_hw == GM_CAM) {
@@ -261,4 +272,6 @@ const safety_hooks gm_hooks = {
   .tx = gm_tx_hook,
   .tx_lin = nooutput_tx_lin_hook,
   .fwd = gm_fwd_hook,
+  .evt = gm_evt_hook,
+  .relay = gm_relay_hook
 };

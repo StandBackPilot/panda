@@ -110,6 +110,10 @@ typedef struct {
 int safety_rx_hook(CANPacket_t *to_push);
 int safety_tx_hook(CANPacket_t *to_send);
 int safety_tx_lin_hook(int lin_num, uint8_t *data, int len);
+int safety_fwd_hook(int bus_num, CANPacket_t *to_fwd);
+int safety_evt_hook(int evt_id);
+
+
 uint32_t get_ts_elapsed(uint32_t ts, uint32_t ts_last);
 int to_signed(int d, int bits);
 void update_sample(struct sample_t *sample, int sample_new);
@@ -151,6 +155,8 @@ typedef int (*rx_hook)(CANPacket_t *to_push);
 typedef int (*tx_hook)(CANPacket_t *to_send);
 typedef int (*tx_lin_hook)(int lin_num, uint8_t *data, int len);
 typedef int (*fwd_hook)(int bus_num, CANPacket_t *to_fwd);
+typedef int (*evt_hook)(int evt_id);
+typedef bool (*handles_relay_hook)(void);
 
 typedef struct {
   safety_hook_init init;
@@ -158,6 +164,8 @@ typedef struct {
   tx_hook tx;
   tx_lin_hook tx_lin;
   fwd_hook fwd;
+  evt_hook evt;
+  handles_relay_hook handles_relay;
 } safety_hooks;
 
 void safety_tick(const addr_checks *addr_checks);
