@@ -29,7 +29,7 @@ const int GM_STANDSTILL_THRSLD = 10;  // 0.311kph
 
 // panda interceptor threshold needs to be equivalent to openpilot threshold to avoid controls mismatches
 // If thresholds are mismatched then it is possible for panda to see the gas fall and rise while openpilot is in the pre-enabled state
-const int GM_GAS_INTERCEPTOR_THRESHOLD = 458; // (610 + 306.25) / 2 ratio between offset and gain from dbc file
+const int GM_GAS_INTERCEPTOR_THRESHOLD = 506; // (610 + 306.25) / 2 ratio between offset and gain from dbc file
 #define GM_GET_INTERCEPTOR(msg) (((GET_BYTE((msg), 0) << 8) + GET_BYTE((msg), 1) + (GET_BYTE((msg), 2) << 8) + GET_BYTE((msg), 3)) / 2U) // avg between 2 tracks
 
 const CanMsg GM_ASCM_TX_MSGS[] = {{384, 0, 4}, {1033, 0, 7}, {1034, 0, 7}, {715, 0, 8}, {880, 0, 6}, {512, 0, 6},  // pt bus
