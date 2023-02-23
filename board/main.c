@@ -274,6 +274,10 @@ void tick_handler(void) {
   TICK_TIMER->SR = 0;
 }
 
+void evt_handler(void) {
+  // do nothing
+}
+
 void EXTI_IRQ_Handler(void) {
   if (check_exti_irq()) {
     exti_irq_clear();
@@ -371,6 +375,8 @@ int main(void) {
   // 1kHz timer - every 1 ms
   REGISTER_INTERRUPT(EVT_TIMER_IRQ, evt_handler, 1000U, FAULT_INTERRUPT_RATE_EVT)
   evt_timer_init();
+
+
 
 
 #ifdef DEBUG

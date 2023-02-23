@@ -33,6 +33,6 @@ void tick_timer_init(void) {
 
 void evt_timer_init(void) {
   // 1000hz
-  timer_init(EVT_TIMER, (uint16_t)((15.25*APB1_FREQ)/8U));
+  timer_init(EVT_TIMER, (uint16_t)((15.25*APB1_TIMER_FREQ)/8U));
   NVIC_EnableIRQ(EVT_TIMER_IRQ);
 }

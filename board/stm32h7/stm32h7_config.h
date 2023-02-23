@@ -28,6 +28,10 @@
 #define TICK_TIMER_IRQ TIM8_BRK_TIM12_IRQn
 #define TICK_TIMER TIM12
 
+//Need to evaluate available timers - 15 may be used / wrong type
+#define EVT_TIMER_IRQ TIM15_IRQn
+#define EVT_TIMER TIM15
+
 #define MICROSECOND_TIMER TIM2
 
 #define INTERRUPT_TIMER_IRQ TIM6_DAC_IRQn

@@ -272,6 +272,6 @@ const safety_hooks gm_hooks = {
   .tx = gm_tx_hook,
   .tx_lin = nooutput_tx_lin_hook,
   .fwd = gm_fwd_hook,
-  .evt = gm_evt_hook,
-  .relay = gm_relay_hook
+  .evt = gm_evt_hook//,
+  //.relay = gm_relay_hook
 };
