@@ -9,7 +9,7 @@ int get_health_pkt(void *dat) {
   struct health_t * health = (struct health_t*)dat;
 
   health->uptime_pkt = uptime_cnt;
-  health->voltage_pkt = adc_get_voltage();
+  health->voltage_pkt = adc_get_voltage(current_board->adc_scale);
   health->current_pkt = current_board->read_current();
 
   //Use the GPIO pin to determine ignition or use a CAN based logic
@@ -65,6 +65,7 @@ int comms_control_handler(ControlPacket_t *req, uint8_t *resp) {
   unsigned int resp_len = 0;
   uart_ring *ur = NULL;
   timestamp_t t;
+  uint32_t time;
 
 #ifdef DEBUG_COMMS
   print("raw control request: "); hexdump(req, sizeof(ControlPacket_t)); print("\n");
@@ -119,6 +120,15 @@ int comms_control_handler(ControlPacket_t *req, uint8_t *resp) {
       t = rtc_get_time();
       t.second = req->param1;
       rtc_set_time(t);
+      break;
+    // **** 0xa8: get microsecond timer
+    case 0xa8:
+      time = microsecond_timer_get();
+      resp[0] = (time & 0x000000FFU);
+      resp[1] = ((time & 0x0000FF00U) >> 8U);
+      resp[2] = ((time & 0x00FF0000U) >> 16U);
+      resp[3] = ((time & 0xFF000000U) >> 24U);
+      resp_len = 4U;
       break;
     // **** 0xb0: set IR power
     case 0xb0:
