@@ -29,7 +29,7 @@ const int GM_STANDSTILL_THRSLD = 10;  // 0.311kph
 
 const CanMsg GM_ASCM_TX_MSGS[] = {{384, 0, 4}, {1033, 0, 7}, {1034, 0, 7}, {715, 0, 8}, {880, 0, 6},  // pt bus
                                   {161, 1, 7}, {774, 1, 8}, {776, 1, 7}, {784, 1, 2},   // obs bus
-                                  {789, 2, 5},  // ch bus
+                                  {789, 2, 5}, {823, 2, 7}, // ch bus
                                   {0x104c006c, 3, 3}, {0x10400060, 3, 5}};  // gmlan
 
 const CanMsg GM_CAM_TX_MSGS[] = {{384, 0, 4},  // pt bus
@@ -179,6 +179,11 @@ static int gm_tx_hook(CANPacket_t *to_send) {
     if (steer_torque_cmd_checks(desired_torque, -1, GM_STEERING_LIMITS)) {
       tx = 0;
     }
+  }
+
+  // TODO: PACM STEER: safety check
+  if (addr == 823) {
+    (void) 0;
   }
 
   // GAS/REGEN: safety check
