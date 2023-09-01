@@ -27,6 +27,11 @@ const LongitudinalLimits *gm_long_limits;
 
 const int GM_STANDSTILL_THRSLD = 10;  // 0.311kph
 
+// panda interceptor threshold needs to be equivalent to openpilot threshold to avoid controls mismatches
+// If thresholds are mismatched then it is possible for panda to see the gas fall and rise while openpilot is in the pre-enabled state
+const int GM_GAS_INTERCEPTOR_THRESHOLD = 506; // (610 + 306.25) / 2 ratio between offset and gain from dbc file
+#define GM_GET_INTERCEPTOR(msg) (((GET_BYTE((msg), 0) << 8) + GET_BYTE((msg), 1) + (GET_BYTE((msg), 2) << 8) + GET_BYTE((msg), 3)) / 2U) // avg between 2 tracks
+
 const CanMsg GM_ASCM_TX_MSGS[] = {{384, 0, 4}, {1033, 0, 7}, {1034, 0, 7}, {715, 0, 8}, {880, 0, 6},  // pt bus
                                   {161, 1, 7}, {774, 1, 8}, {776, 1, 7}, {784, 1, 2},   // obs bus
                                   {789, 2, 5},  // ch bus
@@ -35,7 +40,7 @@ const CanMsg GM_ASCM_TX_MSGS[] = {{384, 0, 4}, {1033, 0, 7}, {1034, 0, 7}, {715,
 const CanMsg GM_CAM_TX_MSGS[] = {{384, 0, 4},  // pt bus
                                  {481, 2, 7}, {388, 2, 8}};  // camera bus
 
-const CanMsg GM_CAM_LONG_TX_MSGS[] = {{384, 0, 4}, {789, 0, 5}, {715, 0, 8}, {880, 0, 6},  // pt bus
+const CanMsg GM_CAM_LONG_TX_MSGS[] = {{384, 0, 4}, {789, 0, 5}, {715, 0, 8}, {880, 0, 6}, {512, 0, 6},  // pt bus
                                       {388, 2, 8}};  // camera bus
 
 // TODO: do checksum and counter checks. Add correct timestep, 0.1s for now.
@@ -120,14 +125,25 @@ static int gm_rx_hook(CANPacket_t *to_push) {
       gas_pressed = GET_BYTE(to_push, 5) != 0U;
 
       // enter controls on rising edge of ACC, exit controls when ACC off
+      bool cruise_engaged = (GET_BYTE(to_push, 1) >> 5) != 0U;
       if (gm_pcm_cruise) {
-        bool cruise_engaged = (GET_BYTE(to_push, 1) >> 5) != 0U;
         pcm_cruise_check(cruise_engaged);
+      } else if (gas_interceptor_detected) {
+        cruise_engaged_prev = cruise_engaged;
       }
     }
 
     if (addr == 189) {
       regen_braking = (GET_BYTE(to_push, 0) >> 4) != 0U;
+    }
+
+    // Pedal Interceptor
+    if (addr == 513) {
+      gas_interceptor_detected = 1;
+      int gas_interceptor = GM_GET_INTERCEPTOR(to_push);
+      gas_pressed = gas_interceptor > GM_GAS_INTERCEPTOR_THRESHOLD;
+      gas_interceptor_prev = gas_interceptor;
+      gm_pcm_cruise = false;
     }
 
     bool stock_ecu_detected = (addr == 384);  // ASCMLKASteeringCmd
@@ -181,6 +197,13 @@ static int gm_tx_hook(CANPacket_t *to_send) {
     }
   }
 
+  // GAS: safety check (interceptor)
+  if (addr == 512) {
+    if (longitudinal_interceptor_checks(to_send)) {
+      tx = 0;
+    }
+  }
+
   // GAS/REGEN: safety check
   if (addr == 715) {
     bool apply = GET_BIT(to_send, 0U) != 0U;
@@ -197,7 +220,7 @@ static int gm_tx_hook(CANPacket_t *to_send) {
   }
 
   // BUTTONS: used for resume spamming and cruise cancellation with stock longitudinal
-  if ((addr == 481) && gm_pcm_cruise) {
+  if ((addr == 481) && (gm_pcm_cruise || gas_interceptor_detected)) {
     int button = (GET_BYTE(to_send, 5) >> 4) & 0x7U;
 
     bool allowed_cancel = (button == 6) && cruise_engaged_prev;
