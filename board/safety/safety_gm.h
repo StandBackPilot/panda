@@ -102,11 +102,12 @@ static void gm_rx_hook(const CANPacket_t *to_push) {
       bool res = (button == GM_BTN_RESUME) && (cruise_button_prev != GM_BTN_RESUME);
       if (set || res) {
         controls_allowed = true;
+        controls_allowed_long = true;
       }
 
       // exit controls on cancel press
       if (button == GM_BTN_CANCEL) {
-        controls_allowed = false;
+        controls_allowed_long = false;
       }
 
       cruise_button_prev = button;
@@ -150,6 +151,12 @@ static void gm_rx_hook(const CANPacket_t *to_push) {
       gas_pressed = gas_interceptor > GM_GAS_INTERCEPTOR_THRESHOLD;
       gas_interceptor_prev = gas_interceptor;
 //      gm_pcm_cruise = false;
+    }
+
+    // ACC Main On
+    if (addr == 0xC9) {
+      acc_main_on = GET_BIT(to_push, 29U) != 0U;
+      mads_acc_main_check(acc_main_on);
     }
 
     bool stock_ecu_detected = (addr == 0x180);  // ASCMLKASteeringCmd

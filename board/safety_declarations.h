@@ -2,7 +2,7 @@
 
 #define GET_BIT(msg, b) ((bool)!!(((msg)->data[((b) / 8U)] >> ((b) % 8U)) & 0x1U))
 #define GET_BYTE(msg, b) ((msg)->data[(b)])
-#define GET_FLAG(value, mask) (((__typeof__(mask))(value) & (mask)) == (mask))
+#define GET_FLAG(value, mask) (((__typeof__(mask))(value) & (mask)) == (mask)) // cppcheck-suppress misra-c2012-1.2; allow __typeof__
 
 #define BUILD_SAFETY_CFG(rx, tx) ((safety_config){(rx), (sizeof((rx)) / sizeof((rx)[0])), \
                                                   (tx), (sizeof((tx)) / sizeof((tx)[0]))})
@@ -209,7 +209,9 @@ void pcm_cruise_check(bool cruise_engaged);
 void safety_tick(const safety_config *safety_config);
 
 // This can be set by the safety hooks
+bool disengageFromBrakes = false;
 bool controls_allowed = false;
+bool controls_allowed_long = false;
 bool relay_malfunction = false;
 bool enable_gas_interceptor = false;
 int gas_interceptor_prev = 0;
@@ -220,6 +222,8 @@ bool brake_pressed_prev = false;
 bool regen_braking = false;
 bool regen_braking_prev = false;
 bool cruise_engaged_prev = false;
+bool acc_main_on_prev = false;
+bool lkas_pressed_prev = false;
 struct sample_t vehicle_speed;
 bool vehicle_moving = false;
 bool acc_main_on = false;  // referred to as "ACC off" in ISO 15622:2018
@@ -263,7 +267,19 @@ struct sample_t angle_meas;         // last 6 steer angles/curvatures
 // This flag allows AEB to be commanded from openpilot.
 #define ALT_EXP_ALLOW_AEB 16
 
+// Enable the ability to enable sunnypilot Automatic Lane Centering and ACC/SCC independently of each other. This
+// will enable MADS and allow other features to be used.
+// Enable the ability to re-engage sunnypilot Automatic Lane Centering only (NOT ACC/SCC) on brake release while MADS
+// is enabled.
+#define ALT_EXP_ENABLE_MADS 32
+
+// Enable the ability to disable disengaging lateral control on brake press while MADS is enabled.
+// The feature must be gated behind this flag per geohot's comment on the comma community Discord server.
+#define ALT_EXP_MADS_DISABLE_DISENGAGE_LATERAL_ON_BRAKE 64
+
 int alternative_experience = 0;
+
+bool mads_enabled = false;
 
 // time since safety mode has been changed
 uint32_t safety_mode_cnt = 0U;

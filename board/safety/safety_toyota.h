@@ -45,7 +45,7 @@ const int TOYOTA_GAS_INTERCEPTOR_THRSLD = 805;
 
 // Stock longitudinal
 #define TOYOTA_COMMON_TX_MSGS                                                                                     \
-  {0x2E4, 0, 5}, {0x191, 0, 8}, {0x412, 0, 8}, {0x343, 0, 8}, {0x1D2, 0, 8},  /* LKAS + LTA + ACC & PCM cancel cmds */  \
+  {0x2E4, 0, 5}, {0x191, 0, 8}, {0x412, 0, 8}, {0x343, 0, 8}, {0x1D2, 0, 8}, {0x750, 0, 8}, /* sp - white list 0x750 for Enhanced Diagnostic Request */ /* LKAS + LTA + ACC & PCM cancel cmds */  \
 
 #define TOYOTA_COMMON_LONG_TX_MSGS                                                                                                          \
   TOYOTA_COMMON_TX_MSGS                                                                                                                     \
@@ -102,10 +102,17 @@ const uint32_t TOYOTA_PARAM_STOCK_LONGITUDINAL = 2UL << TOYOTA_PARAM_OFFSET;
 const uint32_t TOYOTA_PARAM_LTA = 4UL << TOYOTA_PARAM_OFFSET;
 const uint32_t TOYOTA_PARAM_GAS_INTERCEPTOR = 8UL << TOYOTA_PARAM_OFFSET;
 
+const uint32_t TOYOTA_PARAM_SDSU = 64U << TOYOTA_PARAM_OFFSET;
+const uint32_t TOYOTA_PARAM_UNSUPPORTED_DSU_CAR = 128U << TOYOTA_PARAM_OFFSET;
+
 bool toyota_alt_brake = false;
 bool toyota_stock_longitudinal = false;
 bool toyota_lta = false;
 int toyota_dbc_eps_torque_factor = 100;   // conversion factor for STEER_TORQUE_EPS in %: see dbc file
+
+bool toyota_mads_lta_msg = false;
+bool toyota_unsupported_dsu_car = false;
+bool toyota_sdsu = false;
 
 static uint32_t toyota_compute_checksum(const CANPacket_t *to_push) {
   int addr = GET_ADDR(to_push);
@@ -144,7 +151,18 @@ static bool toyota_get_quality_flag_valid(const CANPacket_t *to_push) {
 }
 
 static void toyota_rx_hook(const CANPacket_t *to_push) {
-  if (GET_BUS(to_push) == 0U) {
+  if ((GET_BUS(to_push) == 2U) && mads_enabled) {
+    int addr = GET_ADDR(to_push);
+    if ((addr == 0x412) && !toyota_mads_lta_msg) {
+      bool lkas_pressed = (GET_BYTE(to_push, 0) & 0xC0) > 0; // LKAS_HUD
+      mads_lkas_button_check(lkas_pressed);
+    }
+
+    if ((addr == 0x412) && toyota_mads_lta_msg) {
+      bool lkas_pressed = (GET_BYTE(to_push, 3) & 0x40) > 0; // LDA_ON_MESSAGE
+      mads_lkas_button_check(lkas_pressed);
+    }
+  } else if (GET_BUS(to_push) == 0U) {
     int addr = GET_ADDR(to_push);
 
     // get eps motor torque (0.66 factor in dbc)
@@ -190,6 +208,16 @@ static void toyota_rx_hook(const CANPacket_t *to_push) {
       }
     }
 
+    if (addr == 0x1D3) {
+      acc_main_on = GET_BIT(to_push, 15U) != 0U;
+      mads_acc_main_check(acc_main_on);
+    }
+
+    if (addr == 0x365 && toyota_unsupported_dsu_car) {
+      acc_main_on = GET_BIT(to_push, 0U) != 0U;
+      mads_acc_main_check(acc_main_on);
+    }
+
     // sample speed
     if (addr == 0xaa) {
       int speed = 0;
@@ -220,7 +248,7 @@ static void toyota_rx_hook(const CANPacket_t *to_push) {
     }
 
     bool stock_ecu_detected = addr == 0x2E4;  // STEERING_LKA
-    if (!toyota_stock_longitudinal && (addr == 0x343)) {
+    if (!toyota_stock_longitudinal && !toyota_sdsu && (addr == 0x343)) {
       stock_ecu_detected = true;  // ACC_CONTROL
     }
     generic_rx_checks(stock_ecu_detected);
@@ -345,8 +373,23 @@ static bool toyota_tx_hook(const CANPacket_t *to_send) {
   if (addr == 0x750) {
     // this address is sub-addressed. only allow tester present to radar (0xF)
     bool invalid_uds_msg = (GET_BYTES(to_send, 0, 4) != 0x003E020FU) || (GET_BYTES(to_send, 4, 4) != 0x0U);
-    if (invalid_uds_msg) {
-      tx = 0;
+
+    // SP: Secret sauce from dp. (ask @rav4kumar prior to modifing)
+    // Enhanced BSM
+    bool sp_valid_uds_msgs = ((GET_BYTES(to_send, 0, 4) == 0x10002141U) ||  // disable left BSM debug
+                              (GET_BYTES(to_send, 0, 4) == 0x60100241U) ||  // enable left BSM debug
+                              (GET_BYTES(to_send, 0, 4) == 0x69210241U) ||  // poll left BSM status
+                              (GET_BYTES(to_send, 0, 4) == 0x10002142U) ||  // disable right BSM debug
+                              (GET_BYTES(to_send, 0, 4) == 0x60100242U) ||  // enable right BSM debug
+                              (GET_BYTES(to_send, 0, 4) == 0x69210242U))    // poll right BSM status
+                              && (GET_BYTES(to_send, 4, 4) == 0x0U);
+
+    sp_valid_uds_msgs |= (GET_BYTES(to_send, 0, 4) == 0x11300540U) &&       // automatic door locking and unlocking
+                         ((GET_BYTES(to_send, 4, 4) == 0x00004000U) ||      // unlock
+                          (GET_BYTES(to_send, 4, 4) == 0x00008000U));       // lock
+
+    if (invalid_uds_msg && !sp_valid_uds_msgs) {
+      tx = false;
     }
   }
 
@@ -359,6 +402,9 @@ static safety_config toyota_init(uint16_t param) {
   toyota_lta = GET_FLAG(param, TOYOTA_PARAM_LTA);
   enable_gas_interceptor = GET_FLAG(param, TOYOTA_PARAM_GAS_INTERCEPTOR);
   toyota_dbc_eps_torque_factor = param & TOYOTA_EPS_FACTOR;
+  toyota_mads_lta_msg = false;
+  toyota_unsupported_dsu_car = GET_FLAG(param, TOYOTA_PARAM_UNSUPPORTED_DSU_CAR);
+  toyota_sdsu = GET_FLAG(param, TOYOTA_PARAM_SDSU);
 
   // Gas interceptor should not be used if openpilot is not controlling longitudinal
   if (toyota_stock_longitudinal) {
